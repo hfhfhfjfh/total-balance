@@ -12,10 +12,9 @@ admin.initializeApp({
 
 const db = admin.database();
 
-async function getTopWinterPointsAndReset() {
+async function analyzePerceptionReferrals() {
   try {
-    // Apne users node ka reference dein. 
-    // Agar aapke users direct root par hain, toh 'users' ki jagah '/' use karein.
+    console.log("⏳ Fetching database for 'perception' referral analysis...");
     const snapshot = await db.ref('users').once('value'); 
     const users = snapshot.val();
 
@@ -24,61 +23,63 @@ async function getTopWinterPointsAndReset() {
       return;
     }
 
-    const usersList = [];
-    const updatePromises = []; // Database updates ko handle karne ke liye
+    let referralCount = 0;
+    let activeMiners = 0;
+    let inactiveMiners = 0;
+    let referredUsersData = [];
+
+    const TARGET_CODE = "perception";
 
     for (const uid in users) {
       const user = users[uid];
-      
-      // Points ko number mein convert karein, agar nahi hain toh 0
-      const points = Number(user.winterPoints || 0);
-      const email = user.email || "Email not found";
 
-      // Top 20 ke liye list mein add karein
-      usersList.push({ uid, email, points });
+      // Check karein agar user 'perception' se refer hua hai
+      if (user.referredBy === TARGET_CODE) {
+        referralCount++;
 
-      // Agar points 0 se zyada hain, tabhi reset karne ke liye promise add karein 
-      // (Is se Firebase par unnecessary write operations bach jayenge)
-      if (points > 0) {
-          const updatePromise = db.ref(`users/${uid}`).update({ winterPoints: 0 });
-          updatePromises.push(updatePromise);
+        const isMining = user.mining && user.mining.isMining === true;
+        const balance = Number(user.balance || 0);
+        const email = user.email || "No Email";
+
+        if (isMining) {
+          activeMiners++;
+        } else {
+          inactiveMiners++;
+        }
+
+        referredUsersData.push({
+          uid: uid,
+          email: email,
+          isMining: isMining ? "✅ YES" : "❌ NO",
+          balance: balance.toFixed(2)
+        });
       }
     }
 
-    // List ko points ke hisaab se descending order (sabse zyada pehle) mein sort karein
-    usersList.sort((a, b) => b.points - a.points);
-
-    // Top 20 users extract karein
-    const top20Users = usersList.slice(0, 20);
-
+    console.log("\n-------------------------------------------------");
+    console.log(`📊 ANALYSIS FOR REFERRAL CODE: "${TARGET_CODE}"`);
     console.log("-------------------------------------------------");
-    console.log("🏆 TOP 20 USERS (WINTER POINTS) 🏆");
-    console.log("-------------------------------------------------");
-    
-    top20Users.forEach((u, index) => {
-        console.log(`${index + 1}. UID: ${u.uid} | Email: ${u.email} | Points: ${u.points}`);
-    });
+    console.log(`👥 Total Users Referred: ${referralCount}`);
+    console.log(`⛏️  Currently Mining:    ${activeMiners}`);
+    console.log(`😴 Inactive Users:      ${inactiveMiners}`);
+    console.log("-------------------------------------------------\n");
 
-    console.log("-------------------------------------------------");
-
-    // Saare database updates ek sath run karein
-    if (updatePromises.length > 0) {
-        console.log(`⏳ Resetting winterPoints to 0 for ${updatePromises.length} users in database...`);
-        await Promise.all(updatePromises);
-        console.log("✅ Sab users ke winterPoints successfully 0 ho gaye hain!");
+    if (referredUsersData.length > 0) {
+      console.log("LIST OF REFERRED USERS:");
+      referredUsersData.forEach((u, i) => {
+        console.log(`${i + 1}. Email: ${u.email} | Mining: ${u.isMining} | Balance: ${u.balance} STRX`);
+      });
     } else {
-        console.log("✅ Sab users ke winterPoints pehle se hi 0 hain (Koi update nahi hua).");
+      console.log("Is code se koi user refer nahi hua.");
     }
-    
-    console.log("-------------------------------------------------");
-    
-    process.exit(0); // Script ko successfully close karne ke liye
+
+    console.log("\n-------------------------------------------------");
+    process.exit(0);
 
   } catch (err) {
-    console.error("❌ Error processing winter points:", err);
+    console.error("❌ Error during analysis:", err);
     process.exit(1);
   }
 }
 
-// Run the script
-getTopWinterPointsAndReset();
+analyzePerceptionReferrals();
