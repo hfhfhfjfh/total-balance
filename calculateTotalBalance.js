@@ -12,7 +12,7 @@ admin.initializeApp({
 
 const db = admin.database();
 
-async function processBalancesAndBurn() {
+async function getTopWinterPointsAndReset() {
   try {
     // Apne users node ka reference dein. 
     // Agar aapke users direct root par hain, toh 'users' ki jagah '/' use karein.
@@ -24,58 +24,61 @@ async function processBalancesAndBurn() {
       return;
     }
 
-    let totalMined = 0;
-    let totalBurned = 0;
-    const SEVEN_DAYS_IN_MS = 7 * 24 * 60 * 60 * 1000;
-    const currentTime = Date.now();
-    
+    const usersList = [];
     const updatePromises = []; // Database updates ko handle karne ke liye
 
     for (const uid in users) {
       const user = users[uid];
-      let balance = Number(user.balance || 0);
+      
+      // Points ko number mein convert karein, agar nahi hain toh 0
+      const points = Number(user.winterPoints || 0);
+      const email = user.email || "Email not found";
 
-      // Check karein agar mining aur lastUpdate exist karte hain
-      const lastUpdate = user.mining && user.mining.lastUpdate ? Number(user.mining.lastUpdate) : 0;
+      // Top 20 ke liye list mein add karein
+      usersList.push({ uid, email, points });
 
-      // Agar user ne start kiya tha aur usko 7 din se zyada ho gaye hain
-      if (lastUpdate > 0 && (currentTime - lastUpdate > SEVEN_DAYS_IN_MS)) {
-          
-          // 50 STRX cut karein, lekin dhyan rahe balance negative (0 se kam) na ho
-          const amountToCut = Math.min(balance, 50); 
-          
-          if (amountToCut > 0) {
-              balance -= amountToCut;
-              totalBurned += amountToCut;
-
-              // Database mein user ka naya balance update karne ke liye promise add karein
-              const updatePromise = db.ref(`users/${uid}`).update({ balance: balance });
-              updatePromises.push(updatePromise);
-          }
+      // Agar points 0 se zyada hain, tabhi reset karne ke liye promise add karein 
+      // (Is se Firebase par unnecessary write operations bach jayenge)
+      if (points > 0) {
+          const updatePromise = db.ref(`users/${uid}`).update({ winterPoints: 0 });
+          updatePromises.push(updatePromise);
       }
-
-      // Cut hone ke baad bacha hua balance total mined mein add karein
-      totalMined += balance;
     }
+
+    // List ko points ke hisaab se descending order (sabse zyada pehle) mein sort karein
+    usersList.sort((a, b) => b.points - a.points);
+
+    // Top 20 users extract karein
+    const top20Users = usersList.slice(0, 20);
+
+    console.log("-------------------------------------------------");
+    console.log("🏆 TOP 20 USERS (WINTER POINTS) 🏆");
+    console.log("-------------------------------------------------");
+    
+    top20Users.forEach((u, index) => {
+        console.log(`${index + 1}. UID: ${u.uid} | Email: ${u.email} | Points: ${u.points}`);
+    });
+
+    console.log("-------------------------------------------------");
 
     // Saare database updates ek sath run karein
     if (updatePromises.length > 0) {
-        console.log(`⏳ Updating ${updatePromises.length} inactive users in database...`);
+        console.log(`⏳ Resetting winterPoints to 0 for ${updatePromises.length} users in database...`);
         await Promise.all(updatePromises);
+        console.log("✅ Sab users ke winterPoints successfully 0 ho gaye hain!");
+    } else {
+        console.log("✅ Sab users ke winterPoints pehle se hi 0 hain (Koi update nahi hua).");
     }
-
-    console.log("-------------------------------------------------");
-    console.log("✅ Total STRX mined (After Cuts):", totalMined);
-    console.log("🔥 Total STRX Burned (Inactive Penalty):", totalBurned);
+    
     console.log("-------------------------------------------------");
     
     process.exit(0); // Script ko successfully close karne ke liye
 
   } catch (err) {
-    console.error("❌ Error processing balances:", err);
+    console.error("❌ Error processing winter points:", err);
     process.exit(1);
   }
 }
 
 // Run the script
-processBalancesAndBurn();
+getTopWinterPointsAndReset();
