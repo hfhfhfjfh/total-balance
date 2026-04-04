@@ -12,9 +12,9 @@ admin.initializeApp({
 
 const db = admin.database();
 
-async function analyzePerceptionReferrals() {
+async function analyzehangvuReferrals() {
   try {
-    console.log("⏳ Fetching database for 'perception' referral analysis...");
+    console.log("⏳ Fetching database for 'hangvu' referral analysis...");
     const snapshot = await db.ref('users').once('value'); 
     const users = snapshot.val();
 
@@ -28,12 +28,12 @@ async function analyzePerceptionReferrals() {
     let inactiveMiners = 0;
     let referredUsersData = [];
 
-    const TARGET_CODE = "perception";
+    const TARGET_CODE = "hangvu";
 
     for (const uid in users) {
       const user = users[uid];
 
-      // Check karein agar user 'perception' se refer hua hai
+      // Check karein agar user 'hangvu' se refer hua hai
       if (user.referredBy === TARGET_CODE) {
         referralCount++;
 
