@@ -28,7 +28,7 @@ async function analyzehangvuReferrals() {
     let inactiveMiners = 0;
     let referredUsersData = [];
 
-    const TARGET_CODE = "hasib9";
+    const TARGET_CODE = "momin3711";
 
     for (const uid in users) {
       const user = users[uid];
